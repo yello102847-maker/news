@@ -32,10 +32,10 @@ jobs:
         run: |
           WEATHER=$(sed -n 1p notify.txt)
           HEADLINE=$(sed -n 2p notify.txt)
+          MSG="$WEATHER"$'\n'"$HEADLINE"
           curl -s -H "Title: 오늘의 뉴스 요약" \
                -H "Click: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" \
-               -d "$WEATHER
-$HEADLINE" \
+               -d "$MSG" \
                "https://ntfy.sh/anseong-news-b768af6a"
 
       - name: 실패 알림

@@ -32,20 +32,30 @@ WEATHER_CODES = {
     95: "뇌우", 96: "우박 동반 뇌우", 99: "강한 우박 동반 뇌우",
 }
 
+WEATHER_EMOJI = {
+    0: "☀️", 1: "🌤️", 2: "⛅", 3: "☁️",
+    45: "🌫️", 48: "🌫️",
+    51: "🌦️", 53: "🌦️", 55: "🌧️", 56: "🌧️", 57: "🌧️",
+    61: "🌧️", 63: "🌧️", 65: "🌧️", 66: "🌧️", 67: "🌧️",
+    71: "🌨️", 73: "🌨️", 75: "❄️", 77: "❄️",
+    80: "🌦️", 81: "🌧️", 82: "⛈️", 85: "🌨️", 86: "❄️",
+    95: "⛈️", 96: "⛈️", 99: "⛈️",
+}
+
 GN_SOLAR = ("https://news.google.com/rss/search?"
             "q=%ED%83%9C%EC%96%91%EA%B4%91+OR+%EC%9E%AC%EC%83%9D%EC%97%90%EB%84%88%EC%A7%80"
             "&hl=ko&gl=KR&ceid=KR:ko")
 
-# (섹션 제목, RSS 주소, 최대 개수, 출처명(None이면 제목의 "- 언론사"에서 추출), 원문이 한국어인가)
+# (아이콘, 섹션 제목, RSS 주소, 최대 개수, 출처명(None이면 제목의 "- 언론사"에서 추출), 원문이 한국어인가)
 # 원문이 한국어가 아닌 소스는 AI 요약(번역)에 성공한 기사만 싣는다 — 번역 없이 영어 제목을 보여주지 않는다.
 FEEDS = [
-    ("주식", "https://www.yna.co.kr/rss/market.xml", 5, "연합뉴스", True),
-    ("경제", "https://www.yna.co.kr/rss/economy.xml", 4, "연합뉴스", True),
-    ("태양광 · 재생에너지", GN_SOLAR, 5, None, True),
-    ("국내 주요뉴스", "https://www.yna.co.kr/rss/society.xml", 6, "연합뉴스", True),
-    ("세계 주요뉴스", "https://www.yna.co.kr/rss/international.xml", 5, "연합뉴스", True),
-    ("과학 뉴스", "https://www.hellodd.com/rss/allArticle.xml", 3, "대덕넷", True),
-    ("재밌는 과학 상식", "https://www.sciencedaily.com/rss/strange_offbeat.xml", 4, "ScienceDaily", False),
+    ("📈", "주식", "https://www.yna.co.kr/rss/market.xml", 5, "연합뉴스", True),
+    ("💰", "경제", "https://www.yna.co.kr/rss/economy.xml", 4, "연합뉴스", True),
+    ("☀️", "태양광 · 재생에너지", GN_SOLAR, 5, None, True),
+    ("🏠", "국내 주요뉴스", "https://www.yna.co.kr/rss/society.xml", 6, "연합뉴스", True),
+    ("🌍", "세계 주요뉴스", "https://www.yna.co.kr/rss/international.xml", 5, "연합뉴스", True),
+    ("🔬", "과학 뉴스", "https://www.hellodd.com/rss/allArticle.xml", 3, "대덕넷", True),
+    ("✨", "재밌는 과학 상식", "https://www.sciencedaily.com/rss/strange_offbeat.xml", 4, "ScienceDaily", False),
 ]
 
 # 자극적이기만 하고 읽을 실익이 없는 사건사고, 그리고 사실 전달이 아닌 의견성 글을 걸러낸다.
@@ -83,11 +93,13 @@ def get_weather():
         delta = (date - today).days
         label = {-1: "어제", 0: "오늘", 1: "내일"}.get(delta, "")
         weekday = "월화수목금토일"[date.weekday()]
+        code = d["weathercode"][i]
         days.append({
             "date": f"{date.month}/{date.day}({weekday})",
             "label": label,
             "today": delta == 0,
-            "desc": WEATHER_CODES.get(d["weathercode"][i], "-"),
+            "desc": WEATHER_CODES.get(code, "-"),
+            "emoji": WEATHER_EMOJI.get(code, "🌡️"),
             "tmax": round(d["temperature_2m_max"][i]),
             "tmin": round(d["temperature_2m_min"][i]),
             "rain": d["precipitation_probability_max"][i],
@@ -198,6 +210,18 @@ def get_summary(title, link):
         return None
 
 
+def weather_card_html(d):
+    label = f'<span>{d["label"]}</span>' if d["label"] else ""
+    cls = "wday today" if d["today"] else "wday"
+    return (f'<div class="{cls}">'
+            f'<div class="wd-date">{d["date"]}{label}</div>'
+            f'<div class="wd-emoji">{d["emoji"]}</div>'
+            f'<div class="wd-desc">{escape(d["desc"])}</div>'
+            f'<div class="wd-temp"><b>{d["tmax"]}°</b> / {d["tmin"]}°</div>'
+            f'<div class="wd-rain">💧{d["rain"]}%</div>'
+            f'</div>')
+
+
 def build_html():
     now = datetime.now(KST)
     date_str = f"{now.year}년 {now.month}월 {now.day}일 ({'월화수목금토일'[now.weekday()]})"
@@ -205,23 +229,15 @@ def build_html():
     weather_days = None
     try:
         weather_days = get_weather()
-        rows = "".join(
-            f'<tr{" class=today" if d["today"] else ""}>'
-            f'<td>{d["date"]}<span class=lbl>{d["label"]}</span></td>'
-            f'<td>{escape(d["desc"])}</td>'
-            f'<td>{d["tmin"]}° / {d["tmax"]}°</td>'
-            f'<td>{d["rain"]}%</td></tr>'
-            for d in weather_days
-        )
-        weather_html = ("<table><tr><th>날짜</th><th>날씨</th><th>최저/최고</th><th>강수</th></tr>"
-                         f"{rows}</table>")
+        cards = "".join(weather_card_html(d) for d in weather_days)
+        weather_html = f'<div class="wstrip">{cards}</div>'
     except Exception as e:
         weather_html = f"<p>날씨 정보를 가져오지 못했습니다. ({escape(str(e))})</p>"
 
     seen = []
     sections = []
     top_headline = None
-    for name, url, limit, source_label, is_korean in FEEDS:
+    for icon, name, url, limit, source_label, is_korean in FEEDS:
         try:
             items = get_items(url, limit, seen, source_label)
         except Exception:
@@ -241,7 +257,9 @@ def build_html():
                 f'<span class=src>{escape(src)}</span></li>'
             )
         body = "<ul>" + "".join(lis) + "</ul>" if lis else '<p class="none">오늘은 새로 전할 소식이 없습니다.</p>'
-        sections.append(f"<section><h2>{escape(name)}</h2>{body}</section>")
+        sections.append(
+            f'<section class="card"><h2><span class="ic">{icon}</span>{escape(name)}</h2>{body}</section>'
+        )
 
     today_weather = next((d for d in (weather_days or []) if d["today"]), None)
     if today_weather:
@@ -260,31 +278,54 @@ def build_html():
 <title>오늘의 뉴스 요약 - {date_str}</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg">
-<meta name="theme-color" content="#0645ad">
+<meta name="theme-color" content="#4f7cff">
 <style>
+  :root {{
+    --bg: #f4f6fb; --card: #ffffff; --text: #1a1a1a; --sub: #6b7280;
+    --border: #ecedf2; --accent: #4f7cff; --accent2: #6ba3ff; --shadow: 0 1px 3px rgba(20,20,40,.06);
+  }}
+  @media (prefers-color-scheme: dark) {{
+    :root {{
+      --bg: #121317; --card: #1c1e24; --text: #eceef2; --sub: #9199a8;
+      --border: #2a2d35; --accent: #7aa2ff; --accent2: #5c86e6; --shadow: 0 1px 4px rgba(0,0,0,.4);
+    }}
+  }}
+  * {{ box-sizing: border-box; }}
   body {{ font-family: -apple-system, "Segoe UI", sans-serif; max-width: 640px;
-         margin: 0 auto; padding: 20px; line-height: 1.5; color: #1a1a1a; }}
-  h1 {{ font-size: 1.25em; margin-bottom: 4px; }}
-  h2 {{ font-size: 1.05em; border-bottom: 2px solid #333; padding-bottom: 4px; margin-top: 30px; }}
-  ul {{ padding-left: 1.1em; }}
-  li {{ margin: 10px 0; }}
-  a {{ color: #0645ad; text-decoration: none; }}
-  a:hover {{ text-decoration: underline; }}
-  .src {{ display: block; font-size: .8em; color: #777; }}
-  .none {{ color: #777; font-size: .92em; }}
-  .weather {{ background: #eef5ff; padding: 12px 14px; border-radius: 8px; }}
-  .weather h2 {{ margin-top: 0; border-color: #b7cdf0; }}
-  table {{ width: 100%; border-collapse: collapse; font-size: .9em; }}
-  th {{ text-align: left; font-weight: 600; color: #555; padding: 4px 2px; }}
-  td {{ padding: 5px 2px; border-top: 1px solid #d5e2f5; }}
-  tr.today td {{ font-weight: 700; }}
-  .lbl {{ color: #0645ad; font-size: .85em; margin-left: 5px; }}
+         margin: 0 auto; padding: 16px; line-height: 1.5; color: var(--text); background: var(--bg); }}
+  h1 {{ font-size: 1.3em; margin: 6px 2px 2px; }}
+  .date {{ margin: 0 2px 16px; color: var(--sub); font-size: .92em; }}
+  .card {{ background: var(--card); border-radius: 16px; padding: 14px 16px; margin-bottom: 12px;
+          box-shadow: var(--shadow); }}
+  h2 {{ font-size: 1.02em; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }}
+  .ic {{ font-size: 1.15em; }}
+  ul {{ list-style: none; padding: 0; margin: 0; }}
+  li {{ padding: 10px 0; border-top: 1px solid var(--border); }}
+  li:first-child {{ border-top: none; padding-top: 0; }}
+  a {{ color: var(--text); text-decoration: none; font-size: .96em; }}
+  a:hover {{ color: var(--accent); }}
+  .src {{ display: block; font-size: .78em; color: var(--sub); margin-top: 3px; }}
+  .none {{ color: var(--sub); font-size: .92em; }}
+
+  .weather-card {{ background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff;
+                   box-shadow: 0 4px 14px rgba(79,124,255,.35); }}
+  .weather-card h2 {{ color: #fff; }}
+  .wstrip {{ display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; margin: 0 -4px; }}
+  .wday {{ flex: 0 0 auto; min-width: 76px; text-align: center; background: rgba(255,255,255,.14);
+          border-radius: 12px; padding: 10px 6px; }}
+  .wday.today {{ background: rgba(255,255,255,.32); }}
+  .wd-date {{ font-size: .78em; opacity: .9; }}
+  .wd-date span {{ display: block; font-size: .9em; font-weight: 700; }}
+  .wd-emoji {{ font-size: 1.5em; margin: 4px 0; }}
+  .wd-desc {{ font-size: .72em; opacity: .9; min-height: 1.6em; }}
+  .wd-temp {{ font-size: .85em; margin-top: 4px; }}
+  .wd-rain {{ font-size: .72em; opacity: .9; margin-top: 2px; }}
 </style>
 </head>
 <body>
-<h1>오늘의 뉴스 요약</h1>
-<p>{date_str}</p>
-<section class="weather"><h2>날씨 (안성)</h2>{weather_html}</section>
+<h1>📰 오늘의 뉴스 요약</h1>
+<p class="date">{date_str}</p>
+<section class="card weather-card"><h2><span class="ic">📍</span>안성 날씨</h2>{weather_html}</section>
 {"".join(sections)}
 </body>
 </html>"""

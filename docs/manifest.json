@@ -1,0 +1,11 @@
+{
+  "name": "오늘의 뉴스 요약",
+  "short_name": "뉴스요약",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0645ad",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

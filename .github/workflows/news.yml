@@ -1,0 +1,46 @@
+name: Daily news build
+
+on:
+  schedule:
+    - cron: "0 22 * * 0-4"  # 한국시간 월~금 07:00 (UTC 일~목 22:00)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 페이지 생성
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python build.py
+
+      - name: 커밋 & 배포
+        run: |
+          git config user.name "news-bot"
+          git config user.email "news-bot@users.noreply.github.com"
+          git add docs/index.html
+          git diff --cached --quiet || git commit -m "daily update"
+          git push
+
+      - name: 알림 보내기
+        run: |
+          WEATHER=$(sed -n 1p notify.txt)
+          HEADLINE=$(sed -n 2p notify.txt)
+          curl -s -H "Title: 오늘의 뉴스 요약" \
+               -H "Click: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/" \
+               -d "$WEATHER
+$HEADLINE" \
+               "https://ntfy.sh/anseong-news-b768af6a"
+
+      - name: 실패 알림
+        if: failure()
+        run: |
+          curl -s -H "Title: 뉴스 요약 생성 실패" \
+               -H "Priority: high" \
+               -d "오늘 아침 뉴스 자동 생성이 실패했어요. GitHub Actions 로그를 확인해주세요." \
+               "https://ntfy.sh/anseong-news-b768af6a"

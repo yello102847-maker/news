@@ -1,11 +1,8 @@
 name: Daily news build
 
 on:
-  schedule:
-    # 한국시간 월~금 06:37 목표 (UTC 일~목 21:37). 정각(0분)은 전세계에서
-    # 같은 시각에 몰려 GitHub 쪽 대기열이 밀리기 쉬워서, 어중간한 분으로
-    # 잡고 목표 시각보다 20여 분 앞당겨 지연을 감안했다.
-    - cron: "37 21 * * 0-4"
+  # GitHub의 schedule은 무료 저장소에서 몇 시간씩 밀리거나 아예 건너뛴다.
+  # 그래서 예약은 외부(cron-job.org)에서 걸고, 여기서는 호출만 받는다.
   workflow_dispatch: {}
 
 permissions:
@@ -20,6 +17,7 @@ jobs:
       - name: 페이지 생성
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: python build.py
 
       - name: 커밋 & 배포

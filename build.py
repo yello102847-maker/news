@@ -146,13 +146,6 @@ def yt_api(endpoint, **params):
     return json.loads(fetch(url))
 
 
-def format_views(n):
-    n = int(n)
-    if n >= 10000:
-        return f"조회수 {n / 10000:.1f}만회".replace(".0만", "만")
-    return f"조회수 {n:,}회"
-
-
 def get_youtube(limit, seen):
     """최근 48시간 안에 올라온 한국 뉴스 영상을 조회수 높은 순으로."""
     if not YOUTUBE_KEY:
@@ -165,8 +158,10 @@ def get_youtube(limit, seen):
     if not ids:
         return []
     stats = yt_api("videos", part="snippet,statistics", id=",".join(ids))
+    by_views = sorted(stats.get("items", []),
+                       key=lambda v: int(v["statistics"].get("viewCount", 0)), reverse=True)
     videos = []
-    for v in stats.get("items", []):
+    for v in by_views:
         title = v["snippet"]["title"].strip()
         if any(w in title for w in BLOCK) or is_dup(title, seen):
             continue
@@ -175,7 +170,6 @@ def get_youtube(limit, seen):
             "link": f"https://www.youtube.com/watch?v={v['id']}",
             "source": v["snippet"]["channelTitle"],
             "body": v["snippet"].get("description", ""),
-            "views": format_views(v["statistics"].get("viewCount", 0)),
         })
         if len(videos) >= limit:
             break
@@ -353,16 +347,16 @@ def build_html():
     seen = []
     top_headline = None
 
-    def render(title, link, source, summary, badge=""):
+    def render(title, link, source, summary):
         nonlocal top_headline
         if top_headline is None:
             top_headline = summary or title
         sum_html = f'<p class="sum">{escape(summary)}</p>' if summary else ""
-        badge_html = f'<span class="views">{escape(badge)}</span>' if badge else ""
         return (f'<li><a href="{escape(link)}" target="_blank" rel="noopener">{escape(title)}</a>'
-                f'{sum_html}<span class="src">{escape(source)}{badge_html}</span></li>')
+                f'{sum_html}<span class="src">{escape(source)}</span></li>')
 
-    # 조회수 높은 유튜브 뉴스 영상을 기사 묶음 맨 앞에 놓는다.
+    # 조회수 높은 유튜브 뉴스 영상을 기사 묶음 맨 앞에 놓는다 — 다른 기사와 똑같은 모양으로 낸다.
+    # (조회수 자체는 get_youtube가 이미 정렬 기준으로만 쓰고, 화면엔 안 보여준다)
     lists = {name: [] for _, name in GROUPS}
     try:
         for v in get_youtube(4, seen):
@@ -371,8 +365,7 @@ def build_html():
                 time.sleep(1.5)
             if summary is SKIP:
                 continue
-            lists["기사"].append(render(v["title"], v["link"], "▶ " + v["source"],
-                                        summary, v["views"]))
+            lists["기사"].append(render(v["title"], v["link"], v["source"], summary))
     except Exception:
         pass  # 유튜브가 막혀도 글 기사는 정상적으로 나와야 한다
 
@@ -447,7 +440,6 @@ def build_html():
   a:hover {{ color: var(--accent); }}
   .sum {{ margin: 4px 0 0; font-size: .88em; color: var(--sub); line-height: 1.45; }}
   .src {{ display: block; font-size: .76em; color: var(--sub); margin-top: 4px; opacity: .85; }}
-  .views {{ margin-left: 6px; color: var(--accent); font-weight: 600; }}
   .none {{ color: var(--sub); font-size: .92em; }}
 
   .weather-card {{ background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff;
